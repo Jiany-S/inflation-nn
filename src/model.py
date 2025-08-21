@@ -1,16 +1,18 @@
-from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.optimizers import Adam
+# src/model.py
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.optimizers import Adam
 
 def build_model(n_lags, n_features):
-    m = Sequential([
+    model = Sequential([
         LSTM(32, dropout=0.2, input_shape=(n_lags, n_features)),
         Dense(16, activation='relu'),
         Dense(1)
     ])
-    m.compile(optimizer=Adam(learning_rate=0.003), loss='mse', metrics=['mae'])
-    return m
+    # ↑ Underfitting → small LR bump
+    model.compile(optimizer=Adam(learning_rate=0.0045), loss='mse', metrics=['mae'])
+    return model
 
 def train_model(model, X_train, y_train, X_val, y_val, X_test, y_test, scaler):
     early = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
