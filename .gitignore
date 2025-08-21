@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.ipynb_checkpoints/
+
+# Models / data
+saved_models/*
+!saved_models/.gitkeep
+results/*
+!results/.gitkeep
+data/*
+.env
+
+# OS / IDE
+.DS_Store
+.vscode/
