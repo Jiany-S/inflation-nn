@@ -2,25 +2,24 @@
 import os
 from pathlib import Path
 
-# Hyperparams
-N_LAGS = 36
+# ==== task / data ====
+N_LAGS = 60
 TRAIN = True
 
-# Engineered features we'll create in data.py
+# Engineered features created in data.py
 SELECTED_FEATURES = [
-    "Unemp_d",       # Δ Unemployment
-    "Rate_d",        # Δ Fed funds
-    "Oil_ret",       # log return of WTI (%)
-    "PPI_yoy",       # YoY PPI (%)
-    "M2_yoy",        # YoY M2 (%)
-    "Retail_yoy",    # YoY retail sales (%)
-    "Employment_d",  # Δ nonfarm payrolls
-    "Housing_d",     # Δ housing starts
-    "T10Y",          # 10Y UST level
-    "Sentiment"      # UMich level
+    # base engineered
+    "Unemp_d", "Rate_d", "Oil_ret", "PPI_yoy", "M2_yoy",
+    "Retail_yoy", "Employment_d", "Housing_d", "T10Y", "Sentiment",
+    # simple polynomials
+    "PPI_yoy_sq", "Oil_ret_sq", "Rate_d_sq", "Unemp_d_sq",
+    # interactions
+    "Rate_Unemp", "Oil_PPI",
+    # rolling/level features helpful for regime tracking
+    "Infl_ma3", "Infl_ma6", "Infl_vol6", "Inflation_prev"
 ]
 
-# Raw FRED series (we'll transform them)
+# Raw FRED series (transformed in data.py)
 SERIES = {
     "CPI": "CPIAUCNS",
     "Unemployment": "UNRATE",
@@ -32,13 +31,20 @@ SERIES = {
     "RetailSales": "RSXFS",
     "Sentiment": "UMCSENT",
     "Employment": "PAYEMS",
-    "HousingStarts": "HOUST"
+    "HousingStarts": "HOUST",
 }
 
-# API key (set in your shell: $env:FRED_API_KEY="..."; or export FRED_API_KEY=...)
+# API key from env (.env or shell). Do NOT hardcode in code.
 API_KEY = os.getenv("FRED_API_KEY", "")
 
-# Paths
+# ==== training hyperparams ====
+EPOCHS = 250
+BATCH_SIZE = 16
+LR = 0.004              # small bump to help underfitting
+PATIENCE = 15
+MIN_LR = 1e-5
+
+# ==== paths ====
 ROOT = Path(__file__).resolve().parent.parent
 SAVED_MODELS_DIR = ROOT / "saved_models"
 RESULTS_DIR = ROOT / "results"
