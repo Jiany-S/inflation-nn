@@ -1,5 +1,6 @@
 # src/model.py
 from tensorflow.keras.models import Sequential
+from tensorflow.keras import Input
 from tensorflow.keras.layers import LSTM, Dense
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.optimizers import Adam
@@ -8,10 +9,11 @@ from .config import LR, EPOCHS, BATCH_SIZE, PATIENCE, MIN_LR
 
 def build_model(n_lags, n_features):
     model = Sequential([
-        LSTM(64, dropout=0.2, return_sequences=True, input_shape=(n_lags, n_features)),
+        Input(shape=(n_lags, n_features)),
+        LSTM(64, dropout=0.2, return_sequences=True),
         LSTM(32, dropout=0.2),
         Dense(32, activation="relu"),
-        Dense(8, activation="relu"),     # extra layer to reduce underfitting
+        Dense(8, activation="relu"),
         Dense(1)
     ])
     model.compile(optimizer=Adam(learning_rate=LR), loss="mse", metrics=["mae"])

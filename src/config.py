@@ -4,6 +4,7 @@ from pathlib import Path
 
 # ==== task / data ====
 N_LAGS = 60
+N_LAGS_BACKTEST = 36
 TRAIN = True
 
 # Engineered features created in data.py
