@@ -3,7 +3,8 @@ import os, joblib
 from .data import load_and_prepare_data
 from .model import build_model, train_model
 from .config import N_LAGS, RESULTS_DIR, SAVED_MODELS_DIR
-from .visualize import plot_learning_curves, plot_preds_vs_actuals, save_metrics_json
+from .visualize import plot_learning_curves, plot_preds_vs_actuals, save_metrics_json, plot_preds_with_bands
+from .uncertainty import mc_dropout_predict
 from src.config import SELECTED_FEATURES, N_LAGS
 
 X_train, y_train, X_val, y_val, X_test, y_test, df, scaler, y_test_sr = load_and_prepare_data(N_LAGS)
