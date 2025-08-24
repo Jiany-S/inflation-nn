@@ -1,19 +1,36 @@
 name: CI
 on: [push, pull_request]
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      MPLBACKEND: Agg
+      TF_CPP_MIN_LOG_LEVEL: "2"
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.10"   # match local; TF wheels are safe here
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
+
       - run: pip install -r requirements.txt
-      # create a dummy .env for CI
-      - run: |
-          echo "FRED_API_KEY=dummy" > .env
-          echo "MPLBACKEND=Agg" >> $GITHUB_ENV
-      # quick smoke tests (short epochs so CI is fast)
+
+      - name: Provide .env with real key
+        run: |
+          echo "FRED_API_KEY=${{ secrets.FRED_API_KEY }}" > .env
+
+      # Run unit tests (preferred over heavy scripts in CI)
+      - run: pytest -q
+
+      # Optional: super-fast smoke runs (won't fail the job if they flake)
       - run: python -m src.eval_baselines
-      - run: python -m src.train --epochs 2 || true
+      - run: python -m src.train --epochs 1 || true
       - run: python -m src.visualize || true
