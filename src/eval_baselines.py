@@ -2,9 +2,9 @@
 import json
 import numpy as np
 from .config import RESULTS_DIR, N_LAGS
-from .data import load_dataset
+from .data import load_dataset, load_and_prepare_data
 
-from .baselines import mae, naive_last, seasonal_naive, arima_forecast
+from .baselines import mae, naive_last, seasonal_naive, arima_forecast, ridge_mae, lasso_mae
 
 def main():
     df, features = load_dataset()
@@ -26,6 +26,16 @@ def main():
 
     (RESULTS_DIR / "baselines.json").write_text(json.dumps(res, indent=2))
     print(res)
+
+    Xtr, ytr, Xv, yv, Xte, yte, df, scaler, y_test_sr = load_and_prepare_data(N_LAGS)
+    metrics = {
+        "naive_last_mae": mae(naive_last(y_test_sr.values)),
+        "seasonal_naive_mae": mae(seasonal_naive(y_test_sr.values)),
+        "arima_100_mae": mae(arima_forecast(y_test_sr.values, order=(1,0,0))),
+        "ridge_mae": ridge_mae(Xte, yte, Xtr, ytr),
+        "lasso_mae": lasso_mae(Xte, yte, Xtr, ytr),
+    }
+    print(metrics)
 
 if __name__ == "__main__":
     main()

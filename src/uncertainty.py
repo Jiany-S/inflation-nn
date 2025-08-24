@@ -83,3 +83,9 @@ def plot_feature_importance(importances: dict, fname: str = "feature_importance.
     fig.savefig(out, dpi=160, bbox_inches="tight")
     plt.close(fig)
     print(f"saved: {out}")
+
+def empirical_coverage(y_true, y_mean, y_std, z=1.28):
+    lo = y_mean - z*y_std
+    hi = y_mean + z*y_std
+    inside = (y_true >= lo) & (y_true <= hi)
+    return float(inside.mean())

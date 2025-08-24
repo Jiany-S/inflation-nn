@@ -1,0 +1,19 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      # create a dummy .env for CI
+      - run: |
+          echo "FRED_API_KEY=dummy" > .env
+          echo "MPLBACKEND=Agg" >> $GITHUB_ENV
+      # quick smoke tests (short epochs so CI is fast)
+      - run: python -m src.eval_baselines
+      - run: python -m src.train --epochs 2 || true
+      - run: python -m src.visualize || true

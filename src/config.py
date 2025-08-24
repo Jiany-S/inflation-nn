@@ -3,6 +3,11 @@ import os
 from pathlib import Path
 
 # ==== task / data ====
+ROOT = Path(__file__).resolve().parents[1]
+RESULTS_DIR = ROOT / "results"
+SAVED_MODELS_DIR = ROOT / "saved_models"
+
+FRED_API_KEY = os.getenv("FRED_API_KEY")
 N_LAGS = 60
 N_LAGS_BACKTEST = 36
 TRAIN = True

@@ -8,3 +8,5 @@ joblib
 streamlit
 seaborn
 statsmodels
+pytest
+dotenv
