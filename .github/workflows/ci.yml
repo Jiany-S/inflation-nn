@@ -12,25 +12,39 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.10"   # match local; TF wheels are safe here
+          python-version: "3.10"
 
       - name: Cache pip
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: ${{ runner.os }}-pip-
+          key: ${{ runner.os }}-py${{ steps.py.outputs.version }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-py${{ steps.py.outputs.version }}-pip-
+            ${{ runner.os }}-pip-
+
+      - name: Show Python version (for cache key)
+        id: py
+        run: echo "version=$(python -c 'import sys;print(f\"{sys.version_info.major}.{sys.version_info.minor}\")')" >> "$GITHUB_OUTPUT"
 
       - run: pip install -r requirements.txt
 
       - name: Provide .env with real key
-        run: |
-          echo "FRED_API_KEY=${{ secrets.FRED_API_KEY }}" > .env
+        run: echo "FRED_API_KEY=${{ secrets.FRED_API_KEY }}" > .env
 
-      # Run unit tests (preferred over heavy scripts in CI)
+      - name: Validate secret format (fail fast if bad)
+        run: |
+          python - <<'PY'
+          import os, re, sys
+          k = os.getenv("FRED_API_KEY","")
+          if not re.fullmatch(r"[a-z0-9]{32}", k or ""):
+            sys.exit("Invalid or missing FRED_API_KEY secret (must be 32 lowercase alnum chars).")
+          PY
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+
       - run: pytest -q
 
-      # Optional: super-fast smoke runs (won't fail the job if they flake)
       - run: python -m src.eval_baselines
       - run: python -m src.train --epochs 1 || true
       - run: python -m src.visualize || true
