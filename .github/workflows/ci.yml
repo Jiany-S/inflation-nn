@@ -14,6 +14,17 @@ jobs:
         with:
           python-version: "3.10"
 
+      - name: Show Python version (for cache key)
+        id: py
+        run: |
+          python - <<'PY'
+          import sys, os
+          ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+          print("Python:", ver)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"version={ver}\n")
+          PY
+
       - name: Cache pip
         uses: actions/cache@v4
         with:
@@ -23,11 +34,10 @@ jobs:
             ${{ runner.os }}-py${{ steps.py.outputs.version }}-pip-
             ${{ runner.os }}-pip-
 
-      - name: Show Python version (for cache key)
-        id: py
-        run: echo "version=$(python -c 'import sys;print(f\"{sys.version_info.major}.{sys.version_info.minor}\")')" >> "$GITHUB_OUTPUT"
-
       - run: pip install -r requirements.txt
+
+      - name: Add repo root to PYTHONPATH
+        run: echo "PYTHONPATH=$PWD" >> $GITHUB_ENV
 
       - name: Provide .env with real key
         run: echo "FRED_API_KEY=${{ secrets.FRED_API_KEY }}" > .env
@@ -38,7 +48,7 @@ jobs:
           import os, re, sys
           k = os.getenv("FRED_API_KEY","")
           if not re.fullmatch(r"[a-z0-9]{32}", k or ""):
-            sys.exit("Invalid or missing FRED_API_KEY secret (must be 32 lowercase alnum chars).")
+              sys.exit("Invalid or missing FRED_API_KEY secret (must be 32 lowercase alnum chars).")
           PY
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
