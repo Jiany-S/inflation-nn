@@ -10,10 +10,9 @@ from .config import LR, EPOCHS, BATCH_SIZE, PATIENCE, MIN_LR
 def build_model(n_lags, n_features):
     model = Sequential([
         Input(shape=(n_lags, n_features)),
-        LSTM(64, dropout=0.2, return_sequences=True),
-        LSTM(32, dropout=0.2),
-        Dense(32, activation="relu"),
-        Dense(8, activation="relu"),
+        LSTM(256, dropout=0.1, return_sequences=True),
+        LSTM(128, dropout=0.1),
+        Dense(64, activation="relu"),
         Dense(1)
     ])
     model.compile(optimizer=Adam(learning_rate=LR), loss="mse", metrics=["mae"])

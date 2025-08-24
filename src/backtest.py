@@ -1,8 +1,6 @@
-# src/backtest.py (replace main + rolling_splits with these improved versions)
+# src/backtest.py
 import json
 import numpy as np
-from pathlib import Path
-from datetime import datetime
 
 from .config import N_LAGS_BACKTEST, RESULTS_DIR
 from .data import load_dataset

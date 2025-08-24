@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -20,12 +20,12 @@ from .utils import fetch_series_monthly, make_sequences
 # Helpers for transformations
 # ----------------------------
 def _pct(x: pd.Series) -> pd.Series:
-    # Month-over-month % change * 100
+    """Month-over-month % change * 100."""
     return x.pct_change(fill_method=None) * 100.0
 
 
 def _yoy(x: pd.Series) -> pd.Series:
-    # Year-over-year % change * 100
+    """Year-over-year % change * 100."""
     return x.pct_change(12, fill_method=None) * 100.0
 
 
@@ -34,8 +34,19 @@ def _diff(x: pd.Series) -> pd.Series:
 
 
 def _logret(x: pd.Series) -> pd.Series:
-    # Log return * 100 for approximate % return
+    """Log return * 100 for approximate % return."""
     return np.log(x).diff() * 100.0
+
+
+def add_covid_dummy(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Adds a binary COVID dummy feature (1 during pandemic months, else 0).
+    Uses Mar 2020 -> Jun 2021 by default. Adjust if you want a wider window.
+    """
+    covid_start = pd.to_datetime("2020-03-01")
+    covid_end   = pd.to_datetime("2021-06-30")
+    df["COVID"] = ((df.index >= covid_start) & (df.index <= covid_end)).astype(int)
+    return df
 
 
 # ----------------------------
@@ -57,11 +68,9 @@ def _load_fred() -> Fred:
 
     env_key = (os.getenv("FRED_API_KEY") or "").strip()
     cfg_key = (API_KEY or "").strip()
-
     key = env_key or cfg_key
 
-    # Normalize and validate (FRED complains if not 32 lower-case alnum)
-    # If user provided uppercase, attempt to normalize to lower-case if format matches.
+    # Normalize and validate (FRED expects 32 lower-case alnum)
     if re.fullmatch(r"[A-Za-z0-9]{32}", key or ""):
         key = key.lower()
 
@@ -127,41 +136,50 @@ def load_dataset() -> Tuple[pd.DataFrame, List[str]]:
 
     # Base engineered predictors
     feat = pd.DataFrame(index=raw.index)
-    feat["Unemp_d"] = _diff(raw["Unemployment"])
-    feat["Rate_d"] = _diff(raw["InterestRate"])
-    feat["Oil_ret"] = _logret(raw["OilPrice"])
-    feat["PPI_yoy"] = _yoy(raw["PPI"])
-    feat["M2_yoy"] = _yoy(raw["M2"])
-    feat["Retail_yoy"] = _yoy(raw["RetailSales"])
+    feat["Unemp_d"]      = _diff(raw["Unemployment"])
+    feat["Rate_d"]       = _diff(raw["InterestRate"])
+    feat["Oil_ret"]      = _logret(raw["OilPrice"])
+    feat["PPI_yoy"]      = _yoy(raw["PPI"])
+    feat["M2_yoy"]       = _yoy(raw["M2"])
+    feat["Retail_yoy"]   = _yoy(raw["RetailSales"])
     feat["Employment_d"] = _diff(raw["Employment"])
-    feat["Housing_d"] = _diff(raw["HousingStarts"])
-    feat["T10Y"] = raw["Treasury10Y"]  # level (expectations proxy)
-    feat["Sentiment"] = raw["Sentiment"]  # level
+    feat["Housing_d"]    = _diff(raw["HousingStarts"])
+    feat["T10Y"]         = raw["Treasury10Y"]  # level (expectations proxy)
+    feat["Sentiment"]    = raw["Sentiment"]    # level
 
     # Simple polynomials
-    feat["PPI_yoy_sq"] = feat["PPI_yoy"].pow(2)
-    feat["Oil_ret_sq"] = feat["Oil_ret"].pow(2)
-    feat["Rate_d_sq"] = feat["Rate_d"].pow(2)
-    feat["Unemp_d_sq"] = feat["Unemp_d"].pow(2)
+    feat["PPI_yoy_sq"]   = feat["PPI_yoy"].pow(2)
+    feat["Oil_ret_sq"]   = feat["Oil_ret"].pow(2)
+    feat["Rate_d_sq"]    = feat["Rate_d"].pow(2)
+    feat["Unemp_d_sq"]   = feat["Unemp_d"].pow(2)
 
     # Interactions
-    feat["Rate_Unemp"] = feat["Rate_d"] * feat["Unemp_d"]
-    feat["Oil_PPI"] = feat["Oil_ret"] * feat["PPI_yoy"]
+    feat["Rate_Unemp"]   = feat["Rate_d"] * feat["Unemp_d"]
+    feat["Oil_PPI"]      = feat["Oil_ret"] * feat["PPI_yoy"]
 
     # Rolling features on inflation itself (regime memory)
-    infl_ma3 = infl_mom.rolling(window=3).mean()
-    infl_ma6 = infl_mom.rolling(window=6).mean()
-    infl_vol6 = infl_mom.rolling(window=6).std()
-
-    feat["Infl_ma3"] = infl_ma3
-    feat["Infl_ma6"] = infl_ma6
-    feat["Infl_vol6"] = infl_vol6
+    infl_ma3             = infl_mom.rolling(window=3).mean()
+    infl_ma6             = infl_mom.rolling(window=6).mean()
+    infl_vol6            = infl_mom.rolling(window=6).std()
+    feat["Infl_ma3"]     = infl_ma3
+    feat["Infl_ma6"]     = infl_ma6
+    feat["Infl_vol6"]    = infl_vol6
     feat["Inflation_prev"] = infl_mom  # sequences will lag it automatically
+
+    # Seasonality (month-of-year)
+    m = feat.index.month
+    feat["MoY_sin"] = np.sin(2 * np.pi * m / 12.0)
+    feat["MoY_cos"] = np.cos(2 * np.pi * m / 12.0)
+
+    # COVID regime indicator
+    feat = add_covid_dummy(feat)  # adds feat["COVID"] ∈ {0,1}
 
     # Final DF (drop rows with any NaNs from lags/rolling)
     df = pd.concat([feat, infl_mom.rename("Inflation")], axis=1).dropna()
 
-    return df, SELECTED_FEATURES
+    # Feature list: prefer SELECTED_FEATURES if provided; otherwise use all non-target columns
+    features: List[str] = list(SELECTED_FEATURES) if SELECTED_FEATURES else [c for c in df.columns if c != "Inflation"]
+    return df, features
 
 
 def load_and_prepare_data(
@@ -185,19 +203,19 @@ def load_and_prepare_data(
         )
 
     train_end = int(n_total * 0.70)
-    val_end = int(n_total * 0.85)
+    val_end   = int(n_total * 0.85)
 
     feat_df = df[features]
-    y_sr = df["Inflation"]
+    y_sr    = df["Inflation"]
 
     # raw splits
     feat_train = feat_df.iloc[:train_end].copy()
-    feat_val = feat_df.iloc[train_end:val_end].copy()
-    feat_test = feat_df.iloc[val_end:].copy()
+    feat_val   = feat_df.iloc[train_end:val_end].copy()
+    feat_test  = feat_df.iloc[val_end:].copy()
 
     y_train_sr = y_sr.iloc[:train_end].copy()
-    y_val_sr = y_sr.iloc[train_end:val_end].copy()
-    y_test_sr = y_sr.iloc[val_end:].copy()
+    y_val_sr   = y_sr.iloc[train_end:val_end].copy()
+    y_test_sr  = y_sr.iloc[val_end:].copy()
 
     # ------------- scaler (fit on TRAIN only) -------------
     scaler = StandardScaler().fit(feat_train.values)
@@ -210,7 +228,7 @@ def load_and_prepare_data(
     # Block covers [train_end - n_lags, val_end)
     val_ctx_start = max(0, train_end - n_lags)
     feat_val_block = feat_df.iloc[val_ctx_start:val_end].values
-    y_val_block = y_sr.iloc[val_ctx_start:val_end].values
+    y_val_block    = y_sr.iloc[val_ctx_start:val_end].values
 
     X_val_sc = scaler.transform(feat_val_block)
     X_val_all, y_val_all = make_sequences(X_val_sc, y_val_block, n_lags)
@@ -224,7 +242,7 @@ def load_and_prepare_data(
     # ------------- TEST sequences with context from VAL -------------
     test_ctx_start = max(0, val_end - n_lags)
     feat_test_block = feat_df.iloc[test_ctx_start:].values
-    y_test_block = y_sr.iloc[test_ctx_start:].values
+    y_test_block    = y_sr.iloc[test_ctx_start:].values
 
     X_test_sc = scaler.transform(feat_test_block)
     X_test_all, y_test_all = make_sequences(X_test_sc, y_test_block, n_lags)
@@ -235,11 +253,7 @@ def load_and_prepare_data(
     y_test = y_test_all[keep_from_test:]
 
     # ------------- sanity checks -------------
-    for name, X, y in [
-        ("train", X_train, y_train),
-        ("val", X_val, y_val),
-        ("test", X_test, y_test),
-    ]:
+    for name, X, y in [("train", X_train, y_train), ("val", X_val, y_val), ("test", X_test, y_test)]:
         if len(X) == 0:
             raise ValueError(
                 f"{name} split still has 0 sequences after n_lags={n_lags}. "

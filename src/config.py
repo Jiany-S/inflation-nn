@@ -22,7 +22,9 @@ SELECTED_FEATURES = [
     # interactions
     "Rate_Unemp", "Oil_PPI",
     # rolling/level features helpful for regime tracking
-    "Infl_ma3", "Infl_ma6", "Infl_vol6", "Inflation_prev"
+    "Infl_ma3", "Infl_ma6", "Infl_vol6", "Inflation_prev",
+    #Dummy
+    "COVID"
 ]
 
 # Raw FRED series (transformed in data.py)
@@ -44,10 +46,10 @@ SERIES = {
 API_KEY = os.getenv("FRED_API_KEY", "")
 
 # ==== training hyperparams ====
-EPOCHS = 250
+EPOCHS = 120
 BATCH_SIZE = 16
 LR = 0.004              # small bump to help underfitting
-PATIENCE = 15
+PATIENCE = 20
 MIN_LR = 1e-5
 
 # ==== paths ====
