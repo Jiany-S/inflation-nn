@@ -1,7 +1,7 @@
 # src/model.py
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import Input
-from tensorflow.keras.layers import LSTM, Dense
+from tensorflow.keras.layers import LSTM, Dense, GRU
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.optimizers import Adam
 import numpy as np
@@ -10,8 +10,8 @@ from .config import LR, EPOCHS, BATCH_SIZE, PATIENCE, MIN_LR
 def build_model(n_lags, n_features):
     model = Sequential([
         Input(shape=(n_lags, n_features)),
-        LSTM(256, dropout=0.1, return_sequences=True),
-        LSTM(128, dropout=0.1),
+        GRU(256, dropout=0.1, return_sequences=True),
+        GRU(128, dropout=0.1),
         Dense(64, activation="relu"),
         Dense(1)
     ])
