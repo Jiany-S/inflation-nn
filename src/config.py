@@ -14,16 +14,11 @@ TRAIN = True
 
 # Engineered features created in data.py
 SELECTED_FEATURES = [
-    # base engineered
-    "Unemp_d", "Rate_d", "Oil_ret", "PPI_yoy", "M2_yoy",
-    "Retail_yoy", "Employment_d", "Housing_d", "T10Y", "Sentiment",
-    # simple polynomials
+    "Unemp_d", "Oil_ret", "PPI_yoy", "Retail_yoy", "Employment_d",
+    "Housing_d", "T10Y", 
     "PPI_yoy_sq", "Oil_ret_sq", "Rate_d_sq", "Unemp_d_sq",
-    # interactions
     "Rate_Unemp", "Oil_PPI",
-    # rolling/level features helpful for regime tracking
     "Infl_ma3", "Infl_ma6", "Infl_vol6", "Inflation_prev",
-    #Dummy
     "COVID"
 ]
 

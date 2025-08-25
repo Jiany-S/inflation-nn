@@ -6,9 +6,9 @@ import argparse
 
 from .data import load_and_prepare_data
 from .model import build_model, train_model
-from .config import N_LAGS, RESULTS_DIR, SAVED_MODELS_DIR, SELECTED_FEATURES
-from .visualize import plot_learning_curves, plot_preds_vs_actuals, save_metrics_json, plot_preds_with_bands
-from .uncertainty import mc_dropout_predict
+from .config import N_LAGS, RESULTS_DIR, SAVED_MODELS_DIR  # SELECTED_FEATURES not used here
+from .visualize import plot_learning_curves, plot_preds_vs_actuals, save_metrics_json
+from .uncertainty import mc_dropout_predict, plot_uncertainty, empirical_coverage
 from .utils import make_run_dir
 
 def parse_args():
@@ -16,14 +16,15 @@ def parse_args():
     p.add_argument("--epochs", type=int, default=150, help="Training epochs")
     p.add_argument("--lags", type=int, default=None, help="Override N_LAGS")
     p.add_argument("--lr", type=float, default=None, help="Override learning rate")
-    # keep features flag reserved if you later add 'full' feature set
-    p.add_argument("--features", choices=["small", "full"], default="small", help="Feature preset (currently decorative)")
+    # reserved for future preset switching
+    p.add_argument("--features", choices=["small", "full"], default="small",
+                   help="Feature preset (currently decorative)")
     return p.parse_args()
 
 def main():
     args = parse_args()
 
-    # Resolve hyperparams
+    # Resolve hyperparams + dirs
     n_lags = args.lags if args.lags is not None else N_LAGS
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     SAVED_MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -33,19 +34,18 @@ def main():
     # Data
     # ---------------------------
     X_train, y_train, X_val, y_val, X_test, y_test, df, scaler, y_test_sr = load_and_prepare_data(n_lags)
-    # Use actual tensor shape to get feature count
     n_features = X_train.shape[-1]
 
     # ---------------------------
     # Model
     # ---------------------------
-    # Try to pass custom lr if build_model supports it; otherwise fall back.
+    # Pass custom lr only if build_model supports it
     try:
-        model = build_model(n_lags, n_features, learning_rate=args.lr)
+        model = build_model(n_lags, n_features, learning_rate=args.lr)  # your build_model ignores lr
     except TypeError:
         model = build_model(n_lags, n_features)
 
-    # Train (gracefully pass epochs if supported)
+    # Train (gracefully pass epochs if train_model supports it)
     try:
         history, loss, mae = train_model(
             model, X_train, y_train, X_val, y_val, X_test, y_test, scaler, epochs=args.epochs
@@ -73,12 +73,18 @@ def main():
 
     plot_preds_vs_actuals(model, X_test, y_test, y_test_sr, "preds_vs_actuals.png")
 
-    # Uncertainty band (MC Dropout)
-    mean, std = mc_dropout_predict(model, X_test, n_samples=100)
-    # Align dates to y_test length
-    offset = len(y_test_sr) - len(y_test)
-    idx = y_test_sr.index[offset:]
-    plot_preds_with_bands(idx, y_test, mean, mean - 1.28 * std, mean + 1.28 * std, "uncertainty.png")
+    # Uncertainty bands (MC Dropout) — safe to skip if anything goes wrong
+    try:
+        mean, std = mc_dropout_predict(model, X_test, n_samples=100)
+        offset = len(y_test_sr) - len(y_test)      # align dates to test sequences
+        idx = y_test_sr.index[offset:]
+        # plot 80% band via z ≈ 1.28
+        plot_uncertainty(idx, y_test, mean, std, fname="uncertainty.png", z=1.28)
+        cov = empirical_coverage(y_test, mean, std, z=1.28)
+        (RESULTS_DIR / "coverage.txt").write_text(f"80% band empirical coverage: {cov:.3f}\n")
+        print(f"80% band empirical coverage: {cov:.3f}")
+    except Exception as e:
+        print(f"[warn] uncertainty plot skipped: {e}")
 
     # Save metrics to the shared results dir
     metrics = {
@@ -100,7 +106,7 @@ def main():
         f"MSE={metrics['final_test_mse']:.4f}, "
         f"lags={n_lags}, feats={n_features}, epochs={args.epochs}, lr={args.lr}"
     )
-    print(f"Artifacts:")
+    print("Artifacts:")
     print(f"  - Model  : {SAVED_MODELS_DIR / 'inflation_model.keras'}")
     print(f"  - Scaler : {SAVED_MODELS_DIR / 'scaler.pkl'}")
     print(f"  - Run dir: {run_dir}")
